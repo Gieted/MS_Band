@@ -1,37 +1,73 @@
 package pl.gieted.ms_band.app
 
 import android.Manifest
+import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
-import android.os.Build
-import androidx.appcompat.app.AppCompatActivity
+import android.companion.AssociationRequest
+import android.companion.BluetoothDeviceFilter
+import android.companion.CompanionDeviceManager
+import android.content.Intent
+import android.content.IntentSender
 import android.os.Bundle
-import android.widget.TextView
+import android.os.ParcelUuid
 import androidx.activity.result.contract.ActivityResultContracts.RequestPermission
-import pl.gieted.ms_band.lib.BandClient
-import pl.gieted.ms_band.lib.PlatformBluetoothClient
+import androidx.appcompat.app.AppCompatActivity
+import java.util.*
+import java.util.regex.Pattern
 
 class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        val tv: TextView = findViewById(R.id.text_view)
-        
         val bluetoothManager = getSystemService(BLUETOOTH_SERVICE) as BluetoothManager
-        val bandClient = BandClient(bluetoothClient = PlatformBluetoothClient(bluetoothManager.adapter))
+        val bluetoothAdapter = bluetoothManager.adapter
+
         val requestPermissionLauncher =
             registerForActivityResult(
                 RequestPermission()
             ) { isGranted: Boolean ->
-                
+
             }
 
-        if (Build.VERSION.SDK_INT >= 31) {
-            requestPermissionLauncher.launch(Manifest.permission.BLUETOOTH_CONNECT)
-        } else {
-            requestPermissionLauncher.launch(Manifest.permission.BLUETOOTH)
+        requestPermissionLauncher.launch(Manifest.permission.BLUETOOTH_CONNECT)
+
+        if (bluetoothAdapter?.isEnabled == false) {
+            val enableBtIntent = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
+            startActivityForResult(enableBtIntent, 1)
         }
 
-        bandClient.start()
+
+        val deviceManager = getSystemService(COMPANION_DEVICE_SERVICE) as CompanionDeviceManager
+
+        val deviceFilter: BluetoothDeviceFilter = BluetoothDeviceFilter.Builder()
+            .setNamePattern(Pattern.compile("""^MSFT Band \w\w:\w\w$"""))
+            .addServiceUuid(ParcelUuid(UUID.fromString("a502ca97-2ba5-413c-a4e0-13804e47b38f")), null)
+            .addServiceUuid(ParcelUuid(UUID.fromString("a502ca99-2ba5-413c-a4e0-13804e47b38f")), null)
+            .build()
+
+
+        val pairingRequest = AssociationRequest.Builder()
+            // Find only devices that match this request filter.
+//            .addDeviceFilter(deviceFilter)
+            // Stop scanning as soon as one device matching the filter is found.
+            .build()
+
+
+        deviceManager.associate(
+            pairingRequest,
+            object : CompanionDeviceManager.Callback() {
+                override fun onDeviceFound(chooserLauncher: IntentSender) {
+                    startIntentSenderForResult(
+                        chooserLauncher,
+                        2, null, 0, 0, 0
+                    )
+                }
+
+                override fun onFailure(error: CharSequence) {
+                    println(error)
+                }
+            }, null
+        )
     }
 }

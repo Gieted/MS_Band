@@ -1,6 +1,8 @@
 package pl.gieted.ms_band.lib
 
-interface Band {
-    
-    fun connect()
+class Band(connection: BandConnection) {
+
+    fun connect() {
+        
+    }
 }
